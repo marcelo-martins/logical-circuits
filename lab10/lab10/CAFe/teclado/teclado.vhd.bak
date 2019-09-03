@@ -1,0 +1,137 @@
+library ieee;
+use ieee.std_logic_1164.all;
+
+entity kbd_alphanum is
+  port (
+    clk : in std_logic;
+    key_on : in std_logic_vector(2 downto 0);
+    key_code : in std_logic_vector(47 downto 0);
+    HEX1 : out std_logic_vector(6 downto 0); -- GFEDCBA
+    HEX0 : out std_logic_vector(6 downto 0) -- GFEDCBA
+  );
+end kbd_alphanum;
+ 
+architecture rtl of kbd_alphanum is
+
+
+
+--COMPONENTS
+component scanCodeToASCII
+	port (
+		clk : in std_logic;
+		scanCode: in std_logic_vector(15 downto 0);
+		enable: out std_logic;
+		notChar:out std_logic;
+		capsOn:in std_logic;
+		shiftOn:in std_logic;
+		capsOut:out std_logic;
+		shiftOut:out std_logic;
+		ASCIIkey: out std_logic_vector(7 downto 0)
+	);
+end component;
+
+component bin2hexKEY
+	port (
+		SW: in std_logic_vector(3 downto 0);
+		enable: in std_logic;
+		HEX0: out std_logic_vector(6 downto 0)
+	);
+end component; 
+
+component ff_t
+	PORT (
+		T: in std_logic;
+		Clk: in std_logic;
+		Q: out std_logic;
+		Preset: in std_logic;
+		Clear: in std_logic;
+		Q_n: out std_logic
+		);
+end component;
+
+component ff_d
+	PORT (
+		D: in std_logic;
+		Clk: in std_logic;
+		Q: out std_logic;
+		Preset: in std_logic;
+		Clear: in std_logic;
+		Q_n: out std_logic
+		);
+end component;
+
+
+
+
+--SIGNALS
+signal ASCIIkey_1	:	std_logic_vector(7 downto 0);
+signal ASCIIkey_2	:	std_logic_vector(7 downto 0);
+signal ASCIIkey_3	:	std_logic_vector(7 downto 0);
+signal print	:	std_logic_vector(7 downto 0);
+
+signal key1state : std_logic;
+signal key2state : std_logic;  
+signal key3state : std_logic;  
+signal validKey1: std_logic;
+signal validKey2: std_logic;
+signal validKey3: std_logic;
+signal printKey: std_logic;
+
+signal printKeyNumb: std_logic_vector(1 downto 0);
+signal print2: std_logic;
+signal print3: std_logic;
+signal capsOn: std_logic;
+signal shiftOn: std_logic;
+signal shiftKey1: std_logic;
+signal capsKey1: std_logic;
+signal shiftKey2: std_logic;
+signal capsKey2: std_logic;
+signal shiftKey3: std_logic;
+signal capsKey3: std_logic;
+signal capsKey: std_logic;
+signal shiftKey: std_logic;
+
+begin
+	with key_on select
+		key1state <= '1' when "001",
+						 '1' when "011",
+						 '1' when "111",
+						 '0' when others;
+	with key_on select
+		key2state <= '1' when "011", 
+						 '1' when "111",
+						 '1' when "010",
+						 '0' when others;  
+	with key_on select
+		key3state <= '1' when "111",  
+						 '0' when others;  	 
+						 
+						 
+	shiftKey <= shiftKey1 or shiftKey2 or shiftKey3;
+	capsKey <= capsKey1 or capsKey2 or capsKey3;
+	--arruma o ff do caps
+	caps_ff : ff_t port map('1',capsKey,capsOn,'0','0',open);
+	--arruma o shit
+	shift_ff: ff_d port map(shiftKey,clk,shiftOn,'0','0',open);
+	
+	scanCodeToASCII_1 : scanCodeToASCII port map(clk,key_code(15 downto 0),validKey1,print2 ,capsOn,shiftOn,capsKey1,shiftKey1,ASCIIkey_1); 
+	scanCodeToASCII_2 : scanCodeToASCII port map(clk,key_code(31 downto 16),validKey2,print3 ,capsOn,shiftOn,capsKey2,shiftKey2,ASCIIkey_2);
+	scanCodeToASCII_3 : scanCodeToASCII port map(clk,key_code(47 downto 32),validKey3,open ,capsOn,shiftOn,capsKey3,shiftKey3,ASCIIkey_3);
+	
+	--
+	printKeyNumb<= print3 & print2;
+	with printkeyNumb select
+		print <= ASCIIkey_1 when "00",
+					ASCIIkey_2 when "01",
+					ASCIIkey_3 when others;
+	with printKeyNumb select
+		printKey <= validKey1 and key1state when "00",
+						validKey2 and key2state when "01",
+						validKey3 and key3state when others;
+	
+	
+	--IMPRIME A TECLA CERTA 
+	Abin2hex_1a : bin2hexKEY port map(print(3 downto 0) ,printKey,HEX0 ); 
+	bin2hex_1b : bin2hexKEY port map(print(7 downto 4) ,printKey,HEX1 ); 
+	
+end rtl;
